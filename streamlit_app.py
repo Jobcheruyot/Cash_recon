@@ -1,77 +1,122 @@
 import streamlit as st
 from streamlit_gsheets import GSheetsConnection
 import pandas as pd
+import datetime
 
-# Display Title and Description
-st.title("Vendor Management Portal")
-st.markdown("Enter the details of the new vendor below.")
+# App Title
+st.title("Daily Cash Holdings Entry")
+st.markdown("Submit daily branch cash and mobile money details below.")
 
-# Establishing a Google Sheets connection
+# Connect to Google Sheets
 conn = st.experimental_connection("gsheets", type=GSheetsConnection)
 
-# Fetch existing vendors data
-existing_data = conn.read(worksheet="Vendors", usecols=list(range(6)), ttl=5)
+# Fetch existing sheet data for dropdowns (assuming separate sheets/tabs hold reference values)
+mpesa_options = conn.read(worksheet="mpesa_options")["value"].dropna().tolist()
+vooma_options = conn.read(worksheet="vooma_options")["value"].dropna().tolist()
+pdq_options = conn.read(worksheet="pdq_options")["value"].dropna().tolist()
+wht_options = conn.read(worksheet="wht_options")["value"].dropna().tolist()
+deposit_options = conn.read(worksheet="deposit_options")["value"].dropna().tolist()
+
+# Existing data
+existing_data = conn.read(worksheet="Cash_Entries", ttl=5)
 existing_data = existing_data.dropna(how="all")
 
-# List of Business Types and Products
-BUSINESS_TYPES = [
-    "Manufacturer",
-    "Distributor",
-    "Wholesaler",
-    "Retailer",
-    "Service Provider",
-]
-PRODUCTS = [
-    "Electronics",
-    "Apparel",
-    "Groceries",
-    "Software",
-    "Other",
-]
+# Cash Holding Form
+with st.form("cash_form"):
+    st.subheader("Branch & Date Information")
+    store_id = st.text_input("Store ID (as per email)*")
+    branch = st.text_input("Branch Name*")
+    date = st.date_input("Date", value=datetime.date.today())
 
-# Onboarding New Vendor Form
-with st.form(key="vendor_form"):
-    company_name = st.text_input(label="Company Name*")
-    business_type = st.selectbox("Business Type*", options=BUSINESS_TYPES, index=None)
-    products = st.multiselect("Products Offered", options=PRODUCTS)
-    years_in_business = st.slider("Years in Business", 0, 50, 5)
-    onboarding_date = st.date_input(label="Onboarding Date")
-    additional_info = st.text_area(label="Additional Notes")
+    st.subheader("Cash & Mobile Money Inputs")
+    mpesa = st.multiselect("Mpesa*", options=mpesa_options)
+    vooma = st.multiselect("Vooma*", options=vooma_options)
+    pdq = st.multiselect("PDQ*", options=pdq_options)
+    wht = st.multiselect("WHT*", options=wht_options)
+    deposits = st.multiselect("Deposits*", options=deposit_options)
 
-    # Mark mandatory fields
-    st.markdown("**required*")
+    till_closure = st.number_input("Till Closure", step=1.0)
+    manual_adj = st.number_input("Manual Adjustments", step=1.0)
+    cash_sales = st.number_input("Cash Sales", step=1.0)
+    petty_cash = st.number_input("Petty Cash", step=1.0)
 
-    submit_button = st.form_submit_button(label="Submit Vendor Details")
+    st.subheader("Cash Breakdown & Variance Entries")
+    part_one = st.number_input("Part One", step=1.0)
+    last_card = st.number_input("Last Card", step=1.0)
+    lose = st.number_input("Lose", step=1.0)
+    agency = st.number_input("Agency", step=1.0)
+    change_account = st.number_input("Change Account", step=1.0)
+    mpesa_float = st.number_input("Mpesa Float", step=1.0)
+    interbranch = st.number_input("Interbranch", step=1.0)
+    pcv = st.number_input("PCV", step=1.0)
+    coins = st.number_input("Coins", step=1.0)
+    cashiers_change = st.number_input("Cashiers Change", step=1.0)
+    total_breakdown = st.number_input("Total Breakdown", step=1.0)
+    operating_float = st.number_input("Operating Float", step=1.0)
 
-    # If the submit button is pressed
-    if submit_button:
-        # Check if all mandatory fields are filled
-        if not company_name or not business_type:
-            st.warning("Ensure all mandatory fields are filled.")
+    st.subheader("End of Day Balances")
+    mpesa_amt = st.number_input("Mpesa Amount", step=1.0)
+    cash_amt = st.number_input("Cash Amount", step=1.0)
+    equity_coop = st.number_input("Equity Coop", step=1.0)
+    chief_cashier = st.number_input("Chief Cashier", step=1.0)
+    agency_variance = st.number_input("Agency Variance", step=1.0)
+    change_op_bal = st.number_input("Change Opening Bal", step=1.0)
+    change_added = st.number_input("Change Added", step=1.0)
+    change_banking = st.number_input("Change Banking", step=1.0)
+    change_bal = st.number_input("Change Bal", step=1.0)
+    floats_op_bal = st.number_input("Floats Opening Bal", step=1.0)
+    floats_added = st.number_input("Floats Added", step=1.0)
+    floats_banking = st.number_input("Floats Banking", step=1.0)
+    balance = st.number_input("Balance", step=1.0)
+
+    submitted = st.form_submit_button("Submit Entry")
+
+    if submitted:
+        if not store_id or not branch:
+            st.warning("Store ID and Branch are mandatory.")
             st.stop()
-        elif existing_data["CompanyName"].str.contains(company_name).any():
-            st.warning("A vendor with this company name already exists.")
-            st.stop()
-        else:
-            # Create a new row of vendor data
-            vendor_data = pd.DataFrame(
-                [
-                    {
-                        "CompanyName": company_name,
-                        "BusinessType": business_type,
-                        "Products": ", ".join(products),
-                        "YearsInBusiness": years_in_business,
-                        "OnboardingDate": onboarding_date.strftime("%Y-%m-%d"),
-                        "AdditionalInfo": additional_info,
-                    }
-                ]
-            )
 
-            # Add the new vendor data to the existing data
-            updated_df = pd.concat([existing_data, vendor_data], ignore_index=True)
+        new_data = pd.DataFrame([{
+            "store_id": store_id,
+            "branch": branch,
+            "date": date.strftime("%Y-%m-%d"),
+            "mpesa": ", ".join(mpesa),
+            "vooma": ", ".join(vooma),
+            "pdq": ", ".join(pdq),
+            "wht": ", ".join(wht),
+            "deposits": ", ".join(deposits),
+            "till_closure": till_closure,
+            "manual_adj": manual_adj,
+            "cash_sales": cash_sales,
+            "petty_cash": petty_cash,
+            "part_one": part_one,
+            "last_card": last_card,
+            "lose": lose,
+            "agency": agency,
+            "change_account": change_account,
+            "mpesa_float": mpesa_float,
+            "interbranch": interbranch,
+            "pcv": pcv,
+            "coins": coins,
+            "cashiers_change": cashiers_change,
+            "total_breakdown": total_breakdown,
+            "operating_float": operating_float,
+            "mpesa_amt": mpesa_amt,
+            "cash_amt": cash_amt,
+            "equity_coop": equity_coop,
+            "chief_cashier": chief_cashier,
+            "agency_variance": agency_variance,
+            "change_op_bal": change_op_bal,
+            "change_added": change_added,
+            "change_banking": change_banking,
+            "change_bal": change_bal,
+            "floats_op_bal": floats_op_bal,
+            "floats_added": floats_added,
+            "floats_banking": floats_banking,
+            "balance": balance,
+        }])
 
-            # Update Google Sheets with the new vendor data
-            conn.update(worksheet="Vendors", data=updated_df)
-
-            st.success("Vendor details successfully submitted!")
-
+        # Append new data and update sheet
+        updated_df = pd.concat([existing_data, new_data], ignore_index=True)
+        conn.update(worksheet="Cash_Entries", data=updated_df)
+        st.success("Cash entry submitted successfully!")
